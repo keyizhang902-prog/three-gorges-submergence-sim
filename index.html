@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>三峡库区淹没模拟 · 高峡出平湖</title>
+<style>
+  :root {
+    --bg-deep: #060b14;
+    --surface: rgba(15, 22, 42, 0.88);
+    --text-primary: #e8ecf2;
+    --text-secondary: #8899bb;
+    --accent: #4da6ff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg-deep);
+    font-family: 'Noto Serif SC', 'STSong', 'Songti SC', serif;
+    overflow: hidden; height: 100vh; width: 100vw;
+    -webkit-font-smoothing: antialiased;
+  }
+  #container { position: fixed; inset: 0; z-index: 1; }
+  canvas { display: block; }
+
+  #title-overlay {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+    padding: 28px 36px 40px; pointer-events: none;
+    background: linear-gradient(180deg, rgba(6,11,20,0.95) 40%, transparent 100%);
+  }
+  #title-overlay h1 { font-size: 26px; font-weight: 700; color: var(--text-primary); letter-spacing: 4px; margin-bottom: 4px; }
+  #title-overlay .subtitle { font-size: 13px; color: var(--text-secondary); letter-spacing: 2px; }
+
+  #dir-upstream, #dir-downstream {
+    position: fixed; z-index: 10; pointer-events: none;
+    font-size: 13px; color: rgba(255,255,255,0.35);
+    font-family: 'Noto Serif SC', 'STSong', serif; letter-spacing: 2px;
+  }
+  #dir-upstream { top: 50%; left: 36px; transform: translateY(-50%) rotate(-90deg); }
+  #dir-downstream { top: 50%; right: 36px; transform: translateY(-50%) rotate(90deg); }
+
+  #level-indicator {
+    position: fixed; right: 28px; top: 50%; transform: translateY(-50%); z-index: 10;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+  }
+  .level-dot {
+    display: flex; align-items: center; gap: 10px; cursor: pointer;
+    padding: 6px 14px; border-radius: 20px;
+    transition: all 0.35s; background: transparent; border: none;
+    font-family: inherit; color: var(--text-secondary); font-size: 13px; letter-spacing: 1px;
+  }
+  .level-dot .dot { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,0.2); transition: all 0.35s; }
+  .level-dot:hover { color: var(--text-primary); background: rgba(255,255,255,0.04); }
+  .level-dot:hover .dot { background: var(--accent); box-shadow: 0 0 12px rgba(77,166,255,0.5); }
+  .level-dot.active { color: var(--accent); background: rgba(77,166,255,0.08); }
+  .level-dot.active .dot { background: var(--accent); box-shadow: 0 0 16px rgba(77,166,255,0.6); }
+
+  #bottom-bar {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;
+    padding: 20px 36px 32px; display: flex; align-items: center; justify-content: space-between;
+    background: linear-gradient(0deg, rgba(6,11,20,0.92) 50%, transparent 100%);
+  }
+  #level-display { display: flex; align-items: baseline; gap: 6px; }
+  #level-value { font-size: 48px; font-weight: 700; color: var(--text-primary); line-height: 1; letter-spacing: -1px; transition: color 0.4s; }
+  #level-unit { font-size: 16px; color: var(--text-secondary); letter-spacing: 1px; }
+  #level-desc { font-size: 13px; color: var(--text-secondary); margin-top: 4px; letter-spacing: 1px; }
+
+  #nav-buttons { display: flex; gap: 8px; }
+  .nav-btn {
+    width: 44px; height: 44px; border-radius: 50%;
+    border: 1px solid rgba(255,255,255,0.15); background: var(--surface);
+    color: var(--text-primary); font-size: 20px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: all 0.25s;
+    backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  }
+  .nav-btn:hover { border-color: var(--accent); background: rgba(77,166,255,0.1); }
+  .nav-btn:active { transform: scale(0.93); }
+
+  #hint {
+    position: fixed; bottom: 110px; left: 50%; transform: translateX(-50%); z-index: 10;
+    font-size: 11px; color: rgba(255,255,255,0.25); letter-spacing: 1px;
+    pointer-events: none; transition: opacity 0.8s;
+  }
+  @media (max-width: 768px) {
+    #title-overlay h1 { font-size: 18px; letter-spacing: 2px; }
+    #level-value { font-size: 32px; }
+    #level-indicator { right: 10px; gap: 2px; }
+    .level-dot { font-size: 11px; padding: 4px 10px; gap: 6px; }
+    .level-dot .dot { width: 7px; height: 7px; }
+    #dir-upstream { left: 8px; font-size: 11px; }
+    #dir-downstream { right: 8px; font-size: 11px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="container"></div>
+
+<div id="title-overlay">
+  <h1>三峡库区淹没模拟</h1>
+  <div class="subtitle">西陵峡 · 三斗坪坝址 · 高峡出平湖</div>
+</div>
+
+<div id="dir-upstream">上游 · 夔门方向</div>
+<div id="dir-downstream">下游 · 南津关方向</div>
+
+<div id="level-indicator">
+  <button class="level-dot" data-level="0"><span class="dot"></span>原始河道</button>
+  <button class="level-dot" data-level="90"><span class="dot"></span>90m 一期</button>
+  <button class="level-dot" data-level="135"><span class="dot"></span>135m 二期</button>
+  <button class="level-dot" data-level="156"><span class="dot"></span>156m 三期</button>
+  <button class="level-dot active" data-level="175"><span class="dot"></span>175m 竣工</button>
+</div>
+
+<div id="bottom-bar">
+  <div>
+    <div id="level-display">
+      <span id="level-value">175</span>
+      <span id="level-unit">m 蓄水水位</span>
+    </div>
+    <div id="level-desc">最终蓄水高程 · 总库容 393 亿 m³</div>
+  </div>
+  <div id="nav-buttons">
+    <button class="nav-btn" id="btn-prev">◂</button>
+    <button class="nav-btn" id="btn-next">▸</button>
+    <button class="nav-btn" id="btn-auto">▶</button>
+  </div>
+</div>
+
+<div id="hint">拖拽旋转 · 滚轮缩放 · 右键平移 · 键盘 ← → 切换水位 · 空格自动演示</div>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+}}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+const container = document.getElementById('container');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#060b14');
+scene.fog = new THREE.FogExp2('#060b14', 0.00006);
+
+const camera = new THREE.PerspectiveCamera(48, container.clientWidth/container.clientHeight, 2, 6000);
+camera.position.set(520, 420, 620);
+camera.lookAt(0, 30, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(container.clientWidth, container.clientHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+container.appendChild(renderer.domElement);
+
+const labelRenderer = new CSS2DRenderer();
+labelRenderer.setSize(container.clientWidth, container.clientHeight);
+labelRenderer.domElement.style.cssText = 'position:fixed;top:0;pointer-events:none;z-index:5;';
+container.appendChild(labelRenderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 80, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.minDistance = 180;
+controls.maxDistance = 1600;
+controls.maxPolarAngle = Math.PI * 0.52;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.15;
+controls.update();
+
+// 光照
+scene.add(new THREE.AmbientLight('#334466', 1.6));
+const sun = new THREE.DirectionalLight('#ffe8d0', 4.5);
+sun.position.set(500, 700, 250);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.near = 1; sun.shadow.camera.far = 3500;
+sun.shadow.camera.left = -700; sun.shadow.camera.right = 700;
+sun.shadow.camera.top = 700; sun.shadow.camera.bottom = -700;
+sun.shadow.bias = -0.00015; sun.shadow.normalBias = 0.02;
+scene.add(sun);
+const fl = new THREE.DirectionalLight('#8899cc', 0.6); fl.position.set(-300, 150, -400); scene.add(fl);
+const rl = new THREE.DirectionalLight('#ffaa66', 1.2); rl.position.set(0, 60, -550); scene.add(rl);
+
+// 星空
+const sg = new THREE.BufferGeometry();
+const sp = new Float32Array(800*3);
+for (let i=0;i<800;i++){sp[i*3]=(Math.random()-0.5)*3000;sp[i*3+1]=400+Math.random()*1200;sp[i*3+2]=(Math.random()-0.5)*3000;}
+sg.setAttribute('position',new THREE.BufferAttribute(sp,3));
+scene.add(new THREE.Points(sg,new THREE.PointsMaterial({color:'#fff',size:1.8,transparent:true,opacity:0.5,depthWrite:false,blending:THREE.AdditiveBlending})));
+
+// 共享的河道中心线和河宽函数（地形 + 水面共用）
+function rc(z){return Math.sin(z*0.006)*14+Math.sin(z*0.018)*7+Math.cos(z*0.03)*4;}
+function cw(z){return 93+Math.sin(z*0.01)*12+Math.cos(z*0.025)*8;}
+
+// 中堡岛参数（共享）
+const ISLAND_Z=155,ISLAND_R=13,ISLAND_H=22;
+const ISLAND_X=rc(ISLAND_Z);
+function islandHeight(x,z){
+  const dx2=(x-ISLAND_X)*(x-ISLAND_X),dz2=(z-ISLAND_Z)*(z-ISLAND_Z);
+  return ISLAND_H*Math.exp(-(dx2+dz2)/(2*ISLAND_R*ISLAND_R));
+}
+
+// 地形高度函数：给定(x,z)返回该点地形高度（含中堡岛）
+function terrainHeight(x,z){
+  const rv=rc(z),w=cw(z),d=Math.abs(x-rv);
+  let h;
+  if(d<w){const t=d/w;h=-75+t*t*18;}
+  else{
+    const rawT=(d-w)/200,t=Math.min(1,rawT);
+    let baseH;
+    if(t<0.12){const s=t/0.12;baseH=-57+s*104;}
+    else if(t<0.5){const s=(t-0.12)/0.38;baseH=47+s*170;}
+    else{const s=(t-0.5)/0.5;baseH=217+s*90;}
+    const rz=z*0.004,rz2=z*0.009,rz3=z*0.017;
+    const ridge1=Math.sin(rz)*45,ridge2=Math.sin(rz2+1.8)*28,ridge3=Math.cos(rz3)*16;
+    const crossRidge=Math.sin((d-w)*0.015+z*0.006)*12*(1-t*0.6);
+    h=baseH+(ridge1+ridge2+ridge3)*(1-t*0.55)+crossRidge;
+  }
+  h+=islandHeight(x,z);
+  const ds=z>230?Math.max(0,1-(z-230)/170):1;
+  return h*ds;
+}
+
+// ═══════════════════════════ 峡谷地形 ═══════════════════════════
+function createCanyonTerrain() {
+  const W=500,D=700,sw=200,sd=280;
+  const geo=new THREE.PlaneGeometry(W,D,sw,sd);geo.rotateX(-Math.PI/2);
+  const pos=geo.attributes.position,colors=new Float32Array(pos.count*3);
+  for(let i=0;i<pos.count;i++){
+    const x=pos.getX(i),z=pos.getZ(i);
+    const h=terrainHeight(x,z);
+    pos.setY(i,h);
+    let cr,cg,cb;
+    // 自然色带：河床 → 草坡 → 森林 → 岩石 → 雪顶
+    if(h<-50){cr=0.08;cg=0.12;cb=0.06;}           // 深水河床
+    else if(h<-20){const t=(h+50)/30;cr=0.08+t*0.08;cg=0.12+t*0.20;cb=0.06+t*0.06;} // 浅滩
+    else if(h<20){const t=(h+20)/40;cr=0.16+t*0.10;cg=0.32+t*0.08;cb=0.12+t*0.06;}  // 草地
+    else if(h<60){const t=(h-20)/40;cr=0.26+t*0.04;cg=0.40+t*0.02;cb=0.18+t*0.04;}  // 灌木
+    else if(h<140){const t=(h-60)/80;cr=0.30+t*0.02;cg=0.42-t*0.04;cb=0.22-t*0.02;} // 森林
+    else if(h<220){const t=(h-140)/80;cr=0.32+t*0.10;cg=0.38+t*0.06;cb=0.20+t*0.10;} // 岩石
+    else if(h<300){const t=(h-220)/80;cr=0.42+t*0.12;cg=0.44+t*0.10;cb=0.30+t*0.14;} // 高地
+    else{const t=Math.min(1,(h-300)/80);cr=0.54+t*0.20;cg=0.54+t*0.20;cb=0.44+t*0.25;} // 雪顶
+    colors[i*3]=cr;colors[i*3+1]=cg;colors[i*3+2]=cb;
+  }
+  geo.setAttribute('color',new THREE.BufferAttribute(colors,3));geo.computeVertexNormals();
+  const m=new THREE.Mesh(geo,new THREE.MeshStandardMaterial({vertexColors:true,roughness:0.65,metalness:0.04}));
+  m.castShadow=true;m.receiveShadow=true;return m;
+}
+scene.add(createCanyonTerrain());
+
+// ═══════════════════════════ 树木 ═══════════════════════════
+function createTrees(){
+  const treeCount=1800;
+  const treeGroup=new THREE.Group();
+
+  // 树干：InstancedMesh 圆柱
+  const trunkGeo=new THREE.CylinderGeometry(0.6,0.9,5,5);
+  const trunkMat=new THREE.MeshStandardMaterial({color:'#5c3d2e',roughness:0.8,metalness:0.05});
+  const trunks=new THREE.InstancedMesh(trunkGeo,trunkMat,treeCount);
+  trunks.castShadow=true;trunks.receiveShadow=true;
+
+  // 树冠：InstancedMesh 锥体
+  const crownGeo=new THREE.ConeGeometry(2.2,6,6);
+  const crownMat=new THREE.MeshStandardMaterial({color:'#3d6b2e',roughness:0.7,metalness:0.02});
+  const crowns=new THREE.InstancedMesh(crownGeo,crownMat,treeCount);
+  crowns.castShadow=true;crowns.receiveShadow=true;
+
+  const dummy=new THREE.Object3D();
+  let placed=0;
+  const maxAttempts=treeCount*8;
+
+  for(let attempt=0;attempt<maxAttempts&&placed<treeCount;attempt++){
+    const x=(Math.random()-0.5)*440;
+    const z=(Math.random()-0.5)*620;
+    const h=terrainHeight(x,z);
+
+    // 只在 20-180 高度范围（植被带），且不在河道内
+    const rv=rc(z),cwv=cw(z)+5;
+    if(h<20||h>180||Math.abs(x-rv)<cwv)continue;
+
+    dummy.position.set(x,h,z);
+    // 随机微旋转
+    dummy.rotation.set(0,Math.random()*Math.PI*2,0);
+    dummy.scale.setScalar(0.5+Math.random()*0.9);
+    dummy.updateMatrix();
+    trunks.setMatrixAt(placed,dummy.matrix);
+    // 树冠偏移到树干顶部
+    dummy.position.y+=4.5;
+    dummy.updateMatrix();
+    crowns.setMatrixAt(placed,dummy.matrix);
+    placed++;
+  }
+  trunks.count=placed;crowns.count=placed;
+  treeGroup.add(trunks);treeGroup.add(crowns);
+  return treeGroup;
+}
+scene.add(createTrees());
+
+// 河道线
+(function(){
+  const pts=[];
+  for(let z=-340;z<=340;z+=2){
+    pts.push(new THREE.Vector3(Math.sin(z*0.006)*14+Math.sin(z*0.018)*7+Math.cos(z*0.03)*4,-73,z));
+  }
+  const t=new THREE.Mesh(
+    new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts),150,5,8,false),
+    new THREE.MeshStandardMaterial({color:'#0d1f14',roughness:0.5,metalness:0.15})
+  );
+  t.receiveShadow=true;scene.add(t);
+})();
+
+// ═══════════════════════════ 水面（统一 4 顶点网格，中堡岛处自动镂空） ═══════════════════════════
+const waterGroup=new THREE.Group();scene.add(waterGroup);
+
+function getIslandEdgesAtZ(z,waterLevel){
+  const maxH=terrainHeight(ISLAND_X,z);
+  if(maxH<waterLevel)return null;
+  let left=ISLAND_X,right=ISLAND_X;
+  for(let x=ISLAND_X;x>ISLAND_X-ISLAND_R*2.5;x-=0.5){if(terrainHeight(x,z)<waterLevel){left=x+0.5;break;}}
+  for(let x=ISLAND_X;x<ISLAND_X+ISLAND_R*2.5;x+=0.5){if(terrainHeight(x,z)<waterLevel){right=x-0.5;break;}}
+  return {left,right};
+}
+
+function buildFloodWaterGeo(waterLevel){
+  const DAM_Z=200; // 坝轴线
+  const zMin=-340,zMax=DAM_Z+2; // 水面截止到坝体位置
+  const steps=Math.round((zMax-zMin)/340*300);
+  const dz=(zMax-zMin)/steps;
+  const scanStep=0.8,maxScan=200;
+  const verts=[],indices=[];
+
+  // 坝体在 z=DAM_Z 处的峡谷边界（与 buildDamModel 一致）
+  const wlToDamTop={'-60':0,90:100,135:145,156:165,175:190};
+  const damTop=wlToDamTop[waterLevel]||190;
+  let damLeft=0,damRight=0;
+  for(let x=0;x>-maxScan;x-=scanStep){if(terrainHeight(x,DAM_Z)>=damTop){damLeft=x+scanStep;break;}}
+  for(let x=0;x<maxScan;x+=scanStep){if(terrainHeight(x,DAM_Z)>=damTop){damRight=x-scanStep;break;}}
+
+  for(let i=0;i<=steps;i++){
+    const z=zMin+i*dz;
+    const cx=rc(z);
+    let lb=cx,rb=cx;
+    for(let x=cx;x>cx-maxScan;x-=scanStep){if(terrainHeight(x,z)>=waterLevel){lb=x+scanStep;break;}}
+    for(let x=cx;x<cx+maxScan;x+=scanStep){if(terrainHeight(x,z)>=waterLevel){rb=x-scanStep;break;}}
+
+    // 坝体位置：水面上游侧边界与坝体对齐（仅当有坝时）
+    if(z>=DAM_Z-2&&damTop>0){lb=damLeft;rb=damRight;}
+
+    const isl=waterLevel<15?getIslandEdgesAtZ(z,waterLevel):null;
+    const midX=(lb+rb)/2;
+    const s1=isl?isl.left:midX;
+    const s2=isl?isl.right:midX;
+    verts.push(lb,0,z, s1,0,z, s2,0,z, rb,0,z);
+  }
+
+  // 构建三角形：相邻行之间，左半(i0→i1) + 右半(i2→i3)，中间(i1→i2)留空
+  for(let i=0;i<steps;i++){
+    const a=i*4,b=(i+1)*4;
+    // 左半水面
+    indices.push(a,b,a+1, b,a+1,b+1);
+    // 右半水面
+    indices.push(a+2,b+2,a+3, b+2,a+3,b+3);
+  }
+
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(verts),3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+let waterMesh=null;
+
+function createWater(level){
+  if(waterMesh){waterGroup.remove(waterMesh);waterMesh.geometry.dispose();waterMesh.material.dispose();}
+  const geo=buildFloodWaterGeo(level);
+  waterMesh=new THREE.Mesh(geo,new THREE.MeshPhysicalMaterial({
+    color:'#3d8fd9',roughness:0.08,metalness:0.05,transparent:true,opacity:0.5,
+    depthWrite:false,side:THREE.DoubleSide
+  }));
+  waterMesh.position.y=level;waterMesh.renderOrder=1;waterGroup.add(waterMesh);
+}
+
+
+
+// ═══════════════════════════ 标记（柱子加高到水面以上） ═══════════════════════════
+function createLabel(text,position,color,size=14){
+  const div=document.createElement('div');
+  div.textContent=text;
+  div.style.cssText=`color:${color};font-size:${size}px;font-weight:600;font-family:'Noto Serif SC','STSong',serif;text-shadow:0 0 16px rgba(0,0,0,0.9);letter-spacing:1px;white-space:nowrap;pointer-events:none;`;
+  const label=new CSS2DObject(div);
+  label.position.copy(position);
+  return label;
+}
+
+function createMarkerPillar(position,color,baseY,topY){
+  const group=new THREE.Group();
+  const h=topY-baseY;
+  const pole=new THREE.Mesh(
+    new THREE.CylinderGeometry(1.8,2.4,h,12),
+    new THREE.MeshStandardMaterial({color,roughness:0.25,metalness:0.65,emissive:color,emissiveIntensity:0.35})
+  );
+  pole.position.y=(baseY+topY)/2;pole.castShadow=true;group.add(pole);
+  const sphere=new THREE.Mesh(
+    new THREE.SphereGeometry(5.5,24,24),
+    new THREE.MeshStandardMaterial({color,roughness:0.15,metalness:0.5,emissive:color,emissiveIntensity:0.7})
+  );
+  sphere.position.y=topY+3;group.add(sphere);
+  const ring=new THREE.Mesh(
+    new THREE.TorusGeometry(8,0.6,16,48),
+    new THREE.MeshBasicMaterial({color,transparent:true,opacity:0.4})
+  );
+  ring.position.y=topY+3;ring.rotation.x=Math.PI/2;group.add(ring);
+  group.position.copy(position);
+  group.userData={ring};
+  return group;
+}
+
+// 柱子从谷底(-30)延伸到水面以上(190)，175m 水面也淹不到
+const damMarker=createMarkerPillar(new THREE.Vector3(0,-30,200),'#ff5252',-30,190);
+scene.add(damMarker);
+const damLabel=createLabel('▼ 三斗坪坝址',new THREE.Vector3(0,198,200),'#ff5252',15);
+scene.add(damLabel);
+damLabel.userData={baseY:198};
+
+const islandMarker=createMarkerPillar(new THREE.Vector3(ISLAND_X,-30,ISLAND_Z),'#ffc850',-30,180);
+scene.add(islandMarker);
+const islandLabel=createLabel('▲ 中堡岛',new THREE.Vector3(ISLAND_X,188,ISLAND_Z),'#ffc850',13);
+scene.add(islandLabel);
+islandLabel.userData={baseY:188};
+
+// ═══════════════════════════ 大坝施工阶段模型 ═══════════════════════════
+const damModelGroup=new THREE.Group();scene.add(damModelGroup);
+
+const concreteMat=new THREE.MeshStandardMaterial({color:'#c8c0b4',roughness:0.45,metalness:0.08});
+const concreteDark=new THREE.MeshStandardMaterial({color:'#a09888',roughness:0.5,metalness:0.08});
+const steelMat=new THREE.MeshStandardMaterial({color:'#8899aa',roughness:0.3,metalness:0.7});
+const earthMat=new THREE.MeshStandardMaterial({color:'#8b7355',roughness:0.7,metalness:0.05});
+
+const damTopY={90:100,135:145,156:165,175:190};
+
+function buildDamModel(levelKey){
+  while(damModelGroup.children.length>0){damModelGroup.remove(damModelGroup.children[0]);}
+  if(levelKey===0)return;
+
+  const dz=200;
+  const baseY=terrainHeight(0,dz);
+  const topY=damTopY[levelKey];
+  if(!topY)return;
+  const damH=topY-baseY;
+  const damDepth=18;
+
+  // 坝体横跨整个峡谷：扫描实际左岸/右岸边界
+  const step=0.8,maxScan=250;
+  let leftBank=0,rightBank=0;
+  for(let x=0;x>-maxScan;x-=step){if(terrainHeight(x,dz)>=topY){leftBank=x+step;break;}}
+  for(let x=0;x<maxScan;x+=step){if(terrainHeight(x,dz)>=topY){rightBank=x-step;break;}}
+  const fullW=rightBank-leftBank; // 峡谷全宽
+  const cxFull=(leftBank+rightBank)/2;
+
+  // ── 坝体：单一矩形块，全宽等高 ──
+  const damMat=levelKey===175?concreteMat:concreteDark;
+  const bodyGeo=new THREE.BoxGeometry(fullW,damH,damDepth);
+  const body=new THREE.Mesh(bodyGeo,damMat);
+  body.position.set(cxFull,baseY+damH/2,dz);
+  body.castShadow=true;body.receiveShadow=true;
+  damModelGroup.add(body);
+
+  // ── 溢流坝段（坝顶闸门墩） ──
+  if(levelKey>=135){
+    const pierCount=levelKey>=175?7:5;
+    const pierW=3.5,pierH=12;
+    const spacing=fullW*0.5/(pierCount-1);
+    for(let i=0;i<pierCount;i++){
+      const px=cxFull-fullW*0.25+i*spacing;
+      const pierGeo=new THREE.BoxGeometry(pierW,pierH,damDepth+4);
+      const pier=new THREE.Mesh(pierGeo,levelKey===175?steelMat:concreteDark);
+      pier.position.set(px,topY+pierH/2,dz);
+      pier.castShadow=true;
+      damModelGroup.add(pier);
+    }
+  }
+
+  // ── 发电厂房（左侧） ──
+  if(levelKey>=135){
+    const plantW=fullW*0.2,plantH=damH*0.45;
+    const plantGeo=new THREE.BoxGeometry(plantW,plantH,damDepth+6);
+    const plant=new THREE.Mesh(plantGeo,concreteDark);
+    plant.position.set(cxFull-fullW*0.35,baseY+plantH/2,dz);
+    plant.castShadow=true;
+    damModelGroup.add(plant);
+  }
+
+  // ── 五级船闸（右侧，沿河道方向延伸） ──
+  if(levelKey>=135){
+    const lockCount=5,lockW=7,lockLen=damDepth+20,lockGap=2;
+    const lockStartZ=dz-damDepth/2-lockLen/2-2;
+    for(let i=0;i<lockCount;i++){
+      const lz=lockStartZ-i*(lockLen+lockGap);
+      const lockGeo=new THREE.BoxGeometry(lockW,damH*0.4,lockLen);
+      const lock=new THREE.Mesh(lockGeo,concreteDark);
+      lock.position.set(cxFull+fullW*0.42,baseY+damH*0.2,lz);
+      lock.castShadow=true;
+      damModelGroup.add(lock);
+    }
+  }
+
+  // ── 围堰（90m 时期） ──
+  if(levelKey===90){
+    const coffGeo=new THREE.BoxGeometry(fullW*0.9,14,damDepth+24);
+    const coff=new THREE.Mesh(coffGeo,earthMat);
+    coff.position.set(cxFull,baseY+7,dz);
+    coff.castShadow=true;coff.receiveShadow=true;
+    damModelGroup.add(coff);
+  }
+}
+
+buildDamModel(175);
+
+// ═══════════════════════════ 水位管理 ═══════════════════════════
+const levelConfig={
+  0:{label:'原始河道',desc:'建坝前原始峡谷地貌 · 无坝体',value:-60},
+  90:{label:'90m 一期蓄水',desc:'一期围堰发电水位 · 2003年 · 围堰施工',value:90},
+  135:{label:'135m 二期蓄水',desc:'二期工程 · 首批机组发电 · 坝体初具规模',value:135},
+  156:{label:'156m 三期蓄水',desc:'三期工程 · 防洪能力初显 · 坝体接近完工',value:156},
+  175:{label:'175m 最终蓄水',desc:'最终蓄水高程 · 总库容 393 亿 m³ · 大坝全面竣工',value:175}
+};
+const levelKeys=[0,90,135,156,175];
+
+let currentLevelKey=175,currentLevelValue=175,isAnimating=false;
+
+createWater(currentLevelValue);
+
+function updateUI(){
+  const cfg=levelConfig[currentLevelKey];
+  const elVal=document.getElementById('level-value');
+  const elDesc=document.getElementById('level-desc');
+  if(currentLevelKey===0){elVal.textContent='—';elVal.style.color='var(--text-secondary)';}
+  else{elVal.textContent=currentLevelKey;elVal.style.color='var(--text-primary)';}
+  elDesc.textContent=cfg.desc;
+  document.querySelectorAll('.level-dot').forEach(d=>{
+    d.classList.toggle('active',parseInt(d.dataset.level)===currentLevelKey);
+  });
+}
+updateUI();
+
+function animateWaterLevel(from,to){
+  return new Promise(resolve=>{
+    const start=performance.now();isAnimating=true;
+    function tick(now){
+      const elapsed=now-start;
+      const t=Math.min(1,elapsed/1400);
+      const eased=t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2;
+      const cur=from+(to-from)*eased;
+      waterMesh.position.y=cur;
+      // 标签位置：坝标签跟坝顶，岛标签跟水面
+      const dTop=damTopY[currentLevelKey]||0;
+      damLabel.position.y=dTop>0?dTop+15:cur+15;
+      islandLabel.position.y=cur+15;
+      
+      if(t<1){requestAnimationFrame(tick);}
+      else{
+        waterMesh.position.y=to;
+        damLabel.position.y=dTop>0?dTop+15:to+15;
+        islandLabel.position.y=to+15;
+        currentLevelValue=to;isAnimating=false;updateUI();resolve();
+      }
+    }
+    requestAnimationFrame(tick);
+  });
+}
+
+function setWaterLevel(levelKey){
+  if(isAnimating)return;
+  const cfg=levelConfig[levelKey];if(!cfg)return;
+  const from=currentLevelValue,to=cfg.value;if(from===to)return;
+  currentLevelKey=levelKey;
+  // 重建坝体模型
+  buildDamModel(levelKey);
+  // 先用目标水位重建水面几何，获得正确的淹没宽度
+  createWater(to);
+  waterMesh.position.y=from; // 几何已更新，位置退回起点
+  animateWaterLevel(from,to);
+}
+
+// ═══════════════════════════ 按钮 ═══════════════════════════
+document.querySelectorAll('.level-dot').forEach(b=>b.addEventListener('click',()=>setWaterLevel(parseInt(b.dataset.level))));
+document.getElementById('btn-prev').addEventListener('click',()=>{
+  const idx=levelKeys.indexOf(currentLevelKey);if(idx>0)setWaterLevel(levelKeys[idx-1]);
+});
+document.getElementById('btn-next').addEventListener('click',()=>{
+  const idx=levelKeys.indexOf(currentLevelKey);if(idx<levelKeys.length-1)setWaterLevel(levelKeys[idx+1]);
+});
+let autoPlay=false,autoPlayTimer=null;
+document.getElementById('btn-auto').addEventListener('click',function(){
+  autoPlay=!autoPlay;this.textContent=autoPlay?'⏸':'▶';
+  if(autoPlay)runAutoPlay();else clearTimeout(autoPlayTimer);
+});
+function runAutoPlay(){
+  if(!autoPlay)return;
+  const idx=levelKeys.indexOf(currentLevelKey);
+  setWaterLevel(levelKeys[(idx+1)%levelKeys.length]);
+  autoPlayTimer=setTimeout(runAutoPlay,2200);
+}
+window.addEventListener('keydown',e=>{
+  const idx=levelKeys.indexOf(currentLevelKey);
+  if(e.key==='ArrowRight'||e.key==='ArrowUp'){if(idx<levelKeys.length-1)setWaterLevel(levelKeys[idx+1]);}
+  else if(e.key==='ArrowLeft'||e.key==='ArrowDown'){if(idx>0)setWaterLevel(levelKeys[idx-1]);}
+  else if(e.key===' '){e.preventDefault();document.getElementById('btn-auto').click();}
+});
+
+// ═══════════════════════════ 渲染 ═══════════════════════════
+window.addEventListener('resize',()=>{
+  camera.aspect=container.clientWidth/container.clientHeight;camera.updateProjectionMatrix();
+  renderer.setSize(container.clientWidth,container.clientHeight);
+  labelRenderer.setSize(container.clientWidth,container.clientHeight);
+});
+
+const clock=new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const dt=Math.min(clock.getDelta(),0.1);
+  damMarker.children[2].rotation.z+=dt*0.6;
+  islandMarker.children[2].rotation.z+=dt*0.8;
+  
+  controls.update();
+  renderer.render(scene,camera);
+  labelRenderer.render(scene,camera);
+}
+animate();
+setTimeout(()=>{document.getElementById('hint').style.opacity='0';},8000);
+</script>
+</body>
+</html>
