@@ -583,17 +583,184 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
   basePlane.receiveShadow = true;
   scene.add(basePlane);
 
-  // 加载 OBJ 模型
-  // 路径修复：GitHub Pages 上 dashboard/ 目录下，assets/models/ 是相对路径
+  // ═══════════════════════════════════════════
+  // 原创增强模块：船闸、泄洪动画、电厂、标识
+  // 在 OBJ 模型基础上叠加自定义结构，既丰富功能也满足作品原创性要求
+  // ═══════════════════════════════════════════
+
+  function addOriginalFeatures(scene) {
+    const group = new THREE.Group();
+    const s = 0.30; // 与 OBJ 缩放一致
+
+    // ---- 材质定义 ----
+    const concMat = new THREE.MeshStandardMaterial({ color: '#5a6a7a', roughness: 0.7, metalness: 0.15 });
+    const waterMat = new THREE.MeshStandardMaterial({ color: '#2a6a8a', roughness: 0.3, metalness: 0.05, transparent: true, opacity: 0.7 });
+    const gateMat = new THREE.MeshStandardMaterial({ color: '#445566', roughness: 0.5, metalness: 0.4 });
+    const roofMat = new THREE.MeshStandardMaterial({ color: '#667788', roughness: 0.6, metalness: 0.2 });
+    const glowMat = new THREE.MeshStandardMaterial({ color: '#ffcc44', emissive: '#ff8800', emissiveIntensity: 0.5 });
+    const roadMat = new THREE.MeshStandardMaterial({ color: '#3a4a5a', roughness: 0.9 });
+    const steelMat = new THREE.MeshStandardMaterial({ color: '#556677', roughness: 0.5, metalness: 0.5 });
+
+    // ─── 1. 双线五级船闸（左侧，沿 Z 方向阶梯排列） ───
+    const lockGroup = new THREE.Group();
+    const lockCount = 5;
+    const lockLen = 18 * s;
+    const lockW = 6 * s;
+    const lockH = 0.8 * s;
+    for (let i = 0; i < lockCount; i++) {
+      const zOff = -i * (lockLen + 2 * s) - 10 * s;
+      // 左侧船闸
+      const chL = new THREE.Mesh(new THREE.BoxGeometry(lockW, lockH, lockLen), concMat);
+      chL.position.set(-12 * s, -3 + lockH / 2, zOff);
+      chL.castShadow = true; lockGroup.add(chL);
+      // 右侧船闸（双线）
+      const chR = new THREE.Mesh(new THREE.BoxGeometry(lockW, lockH, lockLen), concMat);
+      chR.position.set(-22 * s, -3 + lockH / 2, zOff);
+      chR.castShadow = true; lockGroup.add(chR);
+      // 闸门（两端）
+      for (let side of [-1, 1]) {
+        const gL = new THREE.Mesh(new THREE.BoxGeometry(lockW * 0.04, lockH * 1.1, 0.2 * s), gateMat);
+        gL.position.set(-12 * s, -3 + lockH * 1.05, zOff + side * lockLen / 2);
+        lockGroup.add(gL);
+        const gR = new THREE.Mesh(new THREE.BoxGeometry(lockW * 0.04, lockH * 1.1, 0.2 * s), gateMat);
+        gR.position.set(-22 * s, -3 + lockH * 1.05, zOff + side * lockLen / 2);
+        lockGroup.add(gR);
+      }
+    }
+    // 船闸之间的隔墙
+    for (let i = 0; i < lockCount - 1; i++) {
+      const zOff = -i * (lockLen + 2 * s) - 10 * s - lockLen / 2 - 1 * s;
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(1 * s, lockH * 0.6, 0.8 * s), concMat);
+      wall.position.set(-12 * s, -3 + lockH * 0.6, zOff);
+      lockGroup.add(wall);
+      const wall2 = new THREE.Mesh(new THREE.BoxGeometry(1 * s, lockH * 0.6, 0.8 * s), concMat);
+      wall2.position.set(-22 * s, -3 + lockH * 0.6, zOff);
+      lockGroup.add(wall2);
+    }
+    group.add(lockGroup);
+
+    // ─── 2. 泄洪闸门 + 动态水花粒子 ───
+    // 在坝顶排列一排泄洪闸门
+    const gatePositions = [];
+    for (let x = -24 * s; x <= 24 * s; x += 6 * s) {
+      if (Math.abs(x) < 3 * s) continue; // 中间留空
+      gatePositions.push(x);
+    }
+    for (const x of gatePositions) {
+      const pier = new THREE.Mesh(new THREE.BoxGeometry(1.2 * s, 2.5 * s, 1.5 * s), concMat);
+      pier.position.set(x, -3 + 2.5 * s / 2, 9 * s);
+      pier.castShadow = true; group.add(pier);
+      const gate = new THREE.Mesh(new THREE.BoxGeometry(4 * s, 1.8 * s, 0.6 * s), gateMat);
+      gate.position.set(x, -3 + 1.8 * s / 2, 9.5 * s);
+      gate.castShadow = true; group.add(gate);
+    }
+
+    // 水花粒子系统（泄洪动画）
+    const particleCount = 400;
+    const pGeo = new THREE.BufferGeometry();
+    const pPos = new Float32Array(particleCount * 3);
+    const pVel = new Float32Array(particleCount * 3);
+    const pLife = new Float32Array(particleCount);
+    for (let i = 0; i < particleCount; i++) {
+      const srcIdx = Math.floor(Math.random() * gatePositions.length);
+      const sx = gatePositions[srcIdx] + (Math.random() - 0.5) * 3 * s;
+      pPos[i*3] = sx;
+      pPos[i*3+1] = -3 + (Math.random() * 1.5 * s);
+      pPos[i*3+2] = (9.5 + Math.random() * 4) * s;
+      pVel[i*3] = (Math.random() - 0.5) * 0.8;
+      pVel[i*3+1] = Math.random() * 0.5 + 0.3;
+      pVel[i*3+2] = -Math.random() * 1.5 - 0.5;
+      pLife[i] = Math.random() * 3 + 1;
+    }
+    pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+    const pMat = new THREE.PointsMaterial({
+      color: '#88ccff',
+      size: 0.15,
+      transparent: true,
+      opacity: 0.6,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    const particles = new THREE.Points(pGeo, pMat);
+    group.add(particles);
+
+    // 存起来给动画循环用（含 particles 引用）
+     const particleState = { positions: pPos, velocities: pVel, life: pLife, count: particleCount, gatePositions, particles };
+
+    // ─── 3. 坝后式厂房（下游侧） ───
+    const plantGroup = new THREE.Group();
+    for (let x = -20 * s; x <= 20 * s; x += 5 * s) {
+      if (Math.abs(x) < 4 * s) continue;
+      const plant = new THREE.Mesh(new THREE.BoxGeometry(3.5 * s, 1.2 * s, 2 * s), roofMat);
+      plant.position.set(x, -3 + 0.6 * s, 12 * s);
+      plant.castShadow = true; plantGroup.add(plant);
+      // 窗户发光
+      const win = new THREE.Mesh(new THREE.BoxGeometry(0.2 * s, 0.3 * s, 0.05 * s), glowMat);
+      win.position.set(x, -3 + 0.6 * s, 13 * s);
+      plantGroup.add(win);
+    }
+    group.add(plantGroup);
+
+    // ─── 4. 原创标识牌（3D 悬浮文字效果） ───
+    const sign = new THREE.Mesh(new THREE.BoxGeometry(15 * s, 0.8 * s, 0.2 * s), new THREE.MeshStandardMaterial({
+      color: '#112233', emissive: '#004466', emissiveIntensity: 0.3,
+      transparent: true, opacity: 0.85,
+    }));
+    sign.position.set(0, -3 + 2.8 * s, 13 * s);
+    group.add(sign);
+    // 标识边框光晕
+    const border = new THREE.EdgesGeometry(new THREE.BoxGeometry(15 * s, 0.8 * s, 0.2 * s));
+    const borderLine = new THREE.LineSegments(border, new THREE.LineBasicMaterial({ color: '#00aaff', transparent: true, opacity: 0.4 }));
+    borderLine.position.copy(sign.position);
+    group.add(borderLine);
+
+    // ─── 5. 输电塔（两侧山脊装饰） ───
+    for (const xOff of [-30 * s, 30 * s]) {
+      const towerGroup = new THREE.Group();
+      const poleMat = new THREE.MeshStandardMaterial({ color: '#445566', roughness: 0.7, metalness: 0.3 });
+      // 四根立柱
+      for (let dx of [-0.3, 0.3]) for (let dz of [-0.3, 0.3]) {
+        const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 3 * s, 4), poleMat);
+        pole.position.set(xOff + dx, -3 + 1.5 * s, dz);
+        towerGroup.add(pole);
+      }
+      // 横梁
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.04, 0.04), steelMat);
+      beam.position.set(xOff, -3 + 3 * s - 0.3, 0);
+      towerGroup.add(beam);
+      group.add(towerGroup);
+    }
+
+    // ─── 6. 坝顶公路和路灯 ───
+    const roadWidth = 50 * s;
+    const roadMesh = new THREE.Mesh(new THREE.BoxGeometry(roadWidth, 0.08 * s, 1.5 * s), roadMat);
+    roadMesh.position.set(0, -3 + 2.8 * s, 0);
+    roadMesh.receiveShadow = true;
+    group.add(roadMesh);
+    // 路灯（沿坝顶排列）
+    for (let x = -24 * s; x <= 24 * s; x += 4 * s) {
+      const lamp = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.05, 0.6 * s, 4), steelMat);
+      lamp.position.set(x, -3 + 2.8 * s + 0.3 * s, 0.9 * s);
+      group.add(lamp);
+      const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.05, 4, 4), glowMat);
+      bulb.position.set(x, -3 + 2.8 * s + 0.6 * s, 0.9 * s);
+      group.add(bulb);
+    }
+
+    scene.add(group);
+     return particleState;
+   }
+
+  // ─── 加载 OBJ + 叠加原创增强 ───
   const isGitHubPages = location.hostname.includes('github.io');
   const baseUrl = isGitHubPages
     ? new URL('assets/models/', window.location.href).href
     : new URL('dashboard/assets/models/', window.location.href).href;
 
   let objLoaded = false;
+  let particleState = null;
 
   const mtlLoader = new MTLLoader();
-  // MTL 文件内已包含 textures/ 前缀，资源路径只需到 models/
   mtlLoader.setResourcePath(baseUrl);
   mtlLoader.load(baseUrl + '1.mtl', (materials) => {
     materials.preload();
@@ -611,22 +778,22 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
         }
       });
       scene.add(obj);
-      // 调整相机适应大坝尺寸
+      // 叠加原创增强模块（船闸、泄洪、电厂、标识等）
+      particleState = addOriginalFeatures(scene);
       camera.position.set(5, 3, 10);
       controls.target.set(0, 0, 0);
       controls.update();
       objLoaded = true;
     }, undefined, (err) => {
       console.warn('OBJ load failed, using dam model:', err);
-      if (!objLoaded) createDamModel(scene);
+      if (!objLoaded) { createDamModel(scene); objLoaded = true; }
     });
   }, undefined, () => {
-    if (!objLoaded) createDamModel(scene);
+    if (!objLoaded) { createDamModel(scene); objLoaded = true; }
   });
 
-  // 超时回退：5秒后如果模型还没加载完成，直接使用程序化模型
   setTimeout(() => {
-    if (!objLoaded) createDamModel(scene);
+    if (!objLoaded) { createDamModel(scene); objLoaded = true; }
   }, 5000);
 
   function createDamModel(scene) {
@@ -642,8 +809,6 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
     const lightMat = new THREE.MeshStandardMaterial({
       color: '#778899', roughness: 0.4, metalness: 0.3,
     });
-
-    // 坝体 - 梯形截面（上窄下宽）
     const shape = new THREE.Shape();
     shape.moveTo(-3.0, -1.0);
     shape.lineTo(-2.8, 1.2);
@@ -654,57 +819,53 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
     const body = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, extrudeSettings), mat);
     body.castShadow = true;
     group.add(body);
-
-    // 泄洪闸门
     for (let i = -2.4; i <= 2.4; i += 0.6) {
-      const gate = new THREE.Mesh(
-        new THREE.BoxGeometry(0.25, 0.5, 0.08),
-        darkMat
-      );
+      const gate = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.5, 0.08), darkMat);
       gate.position.set(i, 0.4, 1.05);
       group.add(gate);
     }
-
-    // 坝顶公路
-    const road = new THREE.Mesh(
-      new THREE.BoxGeometry(5.8, 0.08, 0.6),
-      new THREE.MeshStandardMaterial({ color: '#445566', roughness: 0.8 })
-    );
+    const road = new THREE.Mesh(new THREE.BoxGeometry(5.8, 0.08, 0.6), new THREE.MeshStandardMaterial({ color: '#445566', roughness: 0.8 }));
     road.position.set(0, 1.25, 0);
     group.add(road);
-
-    // 厂房
-    const plant = new THREE.Mesh(
-      new THREE.BoxGeometry(4.5, 0.6, 0.5),
-      lightMat
-    );
+    const plant = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.6, 0.5), lightMat);
     plant.position.set(0, -0.7, 1.5);
     group.add(plant);
-
-    // 船闸（左侧）
-    const lock = new THREE.Mesh(
-      new THREE.BoxGeometry(0.8, 0.5, 1.2),
-      darkMat
-    );
+    const lock = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 1.2), darkMat);
     lock.position.set(-3.5, -0.25, -0.2);
     group.add(lock);
-
-    // 高压线塔装饰（视觉引导）
     for (let x of [-3.6, 3.6]) {
-      const tower = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.04, 0.06, 1.5, 4),
-        new THREE.MeshStandardMaterial({ color: '#667788', roughness: 0.7 })
-      );
+      const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 1.5, 4), new THREE.MeshStandardMaterial({ color: '#667788', roughness: 0.7 }));
       tower.position.set(x, -0.25, -0.8);
       group.add(tower);
     }
-
     scene.add(group);
+    particleState = addOriginalFeatures(scene);
   }
 
-  // 渲染循环
+  // 渲染循环（含粒子动画）
   function animate() {
     requestAnimationFrame(animate);
+    // 更新泄洪水花粒子
+     if (particleState) {
+        const { positions, velocities, life, count, particles, gatePositions } = particleState;
+      for (let i = 0; i < count; i++) {
+        life[i] -= 0.016;
+        if (life[i] <= 0) {
+          const srcIdx = Math.floor(Math.random() * gatePositions.length);
+          positions[i*3] = gatePositions[srcIdx] + (Math.random() - 0.5) * 3 * 0.30;
+          positions[i*3+1] = -3 + Math.random() * 1.5 * 0.30;
+          positions[i*3+2] = (9.5 + Math.random() * 4) * 0.30;
+          velocities[i*3] = (Math.random() - 0.5) * 0.8;
+          velocities[i*3+1] = Math.random() * 0.5 + 0.3;
+          velocities[i*3+2] = -Math.random() * 1.5 - 0.5;
+          life[i] = Math.random() * 3 + 1;
+        }
+        positions[i*3] += velocities[i*3] * 0.016;
+        positions[i*3+1] += velocities[i*3+1] * 0.016;
+        positions[i*3+2] += velocities[i*3+2] * 0.016;
+      }
+      particles.geometry.attributes.position.needsUpdate = true;
+    }
     controls.update();
     renderer.render(scene, camera);
   }
