@@ -425,6 +425,7 @@ header {
       <button class="chart-tab active" data-chart="sediment">输沙量</button>
       <button class="chart-tab" data-chart="runoff">径流量</button>
       <button class="chart-tab" data-chart="concentration">含沙量</button>
+      <button class="chart-tab" data-chart="combined">综合对比</button>
     </div>
     <div id="chart-container"></div>
     <div class="water-level-bar" id="waterLevelBar">
@@ -527,7 +528,7 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
   scene.background = new THREE.Color('#0a0e1a');
 
   const camera = new THREE.PerspectiveCamera(40, W/H, 0.1, 200);
-  camera.position.set(8, 6, 14);
+  camera.position.set(18, 12, 25);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(W, H);
@@ -603,13 +604,13 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
           child.receiveShadow = true;
           const s = 0.10;
           child.scale.set(s, s, s);
-          child.position.y = -2;
-          child.rotation.y = Math.PI;
+          child.position.y = -3;
+          // OBJ 已为 Y-up 坐标系，无需旋转
         }
       });
       scene.add(obj);
       // 调整相机适应大坝尺寸
-      camera.position.set(16, 8, 20);
+      camera.position.set(18, 12, 25);
       controls.target.set(0, 0, 0);
       controls.update();
       objLoaded = true;
@@ -719,12 +720,12 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
   });
   ro.observe(container);
 
-  // 视角控制
+  // 视角控制（适配 OBJ 模型 0.10 倍缩放后尺寸 ~24x2.3x29）
   const views = {
-    full: { pos: [8, 6, 14], target: [0, 0, 0] },
-    top: { pos: [0, 15, 0.1], target: [0, 0, 0] },
-    side: { pos: [14, 2, 0], target: [0, 0, 0] },
-    close: { pos: [4, 2, 6], target: [0, 0.5, 0] },
+    full: { pos: [18, 12, 25], target: [0, 0, 0] },
+    top: { pos: [0, 28, 0.1], target: [0, 0, 0] },
+    side: { pos: [28, 4, 0], target: [0, 0, 0] },
+    close: { pos: [6, 3, 10], target: [0, 0.5, 0] },
   };
 
   document.querySelectorAll('.view-btn').forEach(btn => {
@@ -814,6 +815,100 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
     sediment: getOption(sedData, '亿吨', '#00b4ff', '输沙量下降'),
     runoff: getOption(runData, '亿m³', '#00d4aa', '径流量'),
     concentration: getOption(conData, 'kg/m³', '#ffb44a', '含沙量下降'),
+    combined: {
+      tooltip: {
+        trigger: 'axis',
+        backgroundColor: 'rgba(10,14,26,0.9)',
+        borderColor: 'rgba(0,180,255,0.2)',
+        textStyle: { color: '#e8ecf2', fontSize: 12 },
+      },
+      legend: {
+        data: ['输沙量', '径流量', '含沙量'],
+        textStyle: { color: '#8899bb', fontSize: 11 },
+        bottom: 0,
+      },
+      grid: { top: 20, right: 60, bottom: 30, left: 55 },
+      xAxis: {
+        type: 'category',
+        data: years,
+        axisLine: { lineStyle: { color: 'rgba(255,255,255,0.06)' } },
+        axisLabel: { color: '#4a5a7a', fontSize: 10 },
+        axisTick: { show: false },
+      },
+      yAxis: [
+        {
+          type: 'value',
+          name: '输沙量(亿吨) / 含沙量(kg/m³)',
+          nameTextStyle: { color: '#4a5a7a', fontSize: 10 },
+          splitLine: { lineStyle: { color: 'rgba(255,255,255,0.03)', type: 'dashed' } },
+          axisLabel: { color: '#4a5a7a', fontSize: 10 },
+        },
+        {
+          type: 'value',
+          name: '径流量(亿m³)',
+          nameTextStyle: { color: '#4a5a7a', fontSize: 10 },
+          splitLine: { show: false },
+          axisLabel: { color: '#4a5a7a', fontSize: 10 },
+        },
+      ],
+      series: [
+        {
+          name: '输沙量',
+          type: 'line',
+          data: sedData,
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 5,
+          lineStyle: { width: 2, color: '#00b4ff' },
+          itemStyle: { color: '#00b4ff' },
+          areaStyle: {
+            color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [
+              { offset: 0, color: 'rgba(0,180,255,0.4)' },
+              { offset: 1, color: 'rgba(0,180,255,0.02)' },
+            ]},
+          },
+        },
+        {
+          name: '径流量',
+          type: 'line',
+          yAxisIndex: 1,
+          data: runData,
+          smooth: true,
+          symbol: 'diamond',
+          symbolSize: 6,
+          lineStyle: { width: 2, color: '#00d4aa' },
+          itemStyle: { color: '#00d4aa' },
+          areaStyle: {
+            color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [
+              { offset: 0, color: 'rgba(0,212,170,0.3)' },
+              { offset: 1, color: 'rgba(0,212,170,0.02)' },
+            ]},
+          },
+        },
+        {
+          name: '含沙量',
+          type: 'line',
+          data: conData,
+          smooth: true,
+          symbol: 'triangle',
+          symbolSize: 6,
+          lineStyle: { width: 2, color: '#ffb44a' },
+          itemStyle: { color: '#ffb44a' },
+          areaStyle: {
+            color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [
+              { offset: 0, color: 'rgba(255,180,74,0.3)' },
+              { offset: 1, color: 'rgba(255,180,74,0.02)' },
+            ]},
+          },
+          markLine: {
+            silent: true,
+            data: [
+              { xAxis: '2000', label: { formatter: '2003蓄水', color: '#4a5a7a', fontSize: 10 }, lineStyle: { color: 'rgba(255,100,100,0.4)', type: 'dashed', width: 1.5 } },
+            ],
+          },
+        },
+      ],
+    },
   };
 
   let current = 'sediment';
