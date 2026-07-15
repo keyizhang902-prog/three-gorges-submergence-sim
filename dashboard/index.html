@@ -520,8 +520,7 @@ header {
 // ═══════════════════ Three.js 3D 大坝 ═══════════════════
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
-import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 (function init3D() {
   const container = document.getElementById('three-container');
@@ -580,27 +579,39 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
   basePlane.receiveShadow = true;
   scene.add(basePlane);
 
-  // ─── 仅加载朋友的 OBJ 模型 ───
+  // ─── 仅加载朋友的 OBJ 模型（已转 GLB） ───
   const isGitHubPages = location.hostname.includes('github.io');
   const baseUrl = isGitHubPages
     ? new URL('assets/models/', window.location.href).href
     : new URL('dashboard/assets/models/', window.location.href).href;
 
-  const mtlLoader = new MTLLoader();
-  mtlLoader.setResourcePath(baseUrl);
-  mtlLoader.load(baseUrl + '1.mtl', (materials) => {
-    materials.preload();
-    const objLoader = new OBJLoader();
-    objLoader.setMaterials(materials);
-    objLoader.load(baseUrl + '1.obj', (obj) => {
-      obj.scale.set(0.30, 0.30, 0.30);
-      obj.rotation.y = Math.PI;
-      obj.position.y = -3;
-      scene.add(obj);
-      camera.position.set(0, 4, 18);
-      controls.target.set(0, 0, 0);
-      controls.update();
-    });
+  const loader = new GLTFLoader();
+  loader.load(baseUrl + 'dam.glb', (gltf) => {
+    const obj = gltf.scene;
+    obj.scale.set(0.30, 0.30, 0.30);
+    obj.rotation.y = Math.PI;
+    obj.position.y = -3;
+
+    // 给所有 Mesh 设置统一材质（无纹理加载，更快更稳）
+     const mat = new THREE.MeshStandardMaterial({
+       color: '#5a6a7a',
+       roughness: 0.5,
+       metalness: 0.2,
+     });
+     obj.traverse((child) => {
+       if (child.isMesh) {
+         child.castShadow = true;
+         child.receiveShadow = true;
+         child.material = mat;
+       }
+     });
+
+    scene.add(obj);
+    camera.position.set(0, 4, 18);
+    controls.target.set(0, 0, 0);
+    controls.update();
+  }, undefined, (err) => {
+    console.error('GLB load failed:', err);
   });
 
   // 渲染循环
