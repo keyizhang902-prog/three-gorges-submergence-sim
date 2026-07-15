@@ -409,10 +409,10 @@ header {
       </div>
     </div>
     <div class="view-controls">
-      <button class="view-btn active" data-view="full" title="全景总览">⟐</button>
-      <button class="view-btn" data-view="top" title="俯视">⟐</button>
-      <button class="view-btn" data-view="side" title="侧面">⟐</button>
-      <button class="view-btn" data-view="close" title="近景">⊕</button>
+      <button class="view-btn" data-view="full" title="全景总览">⟐</button>
+      <button class="view-btn" data-view="front" title="大坝正面">▣</button>
+      <button class="view-btn" data-view="back" title="大坝背面">▣</button>
+      <button class="view-btn" data-view="lock" title="船闸视角">◈</button>
     </div>
   </div>
 
@@ -528,7 +528,8 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
   scene.background = new THREE.Color('#0a0e1a');
 
   const camera = new THREE.PerspectiveCamera(50, W/H, 0.1, 200);
-  camera.position.set(5, 3, 10);
+  camera.position.set(0, 1.5, 7.5);
+  camera.lookAt(0, 0.5, 0);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(W, H);
@@ -540,7 +541,7 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
   container.appendChild(renderer.domElement);
 
   const controls = new OrbitControls(camera, renderer.domElement);
-  controls.target.set(0, 0, 0);
+  controls.target.set(0, 0.5, 0);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
   controls.minDistance = 4;
@@ -619,8 +620,9 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
         }
       });
       scene.add(obj);
-      camera.position.set(5, 3, 10);
-      controls.target.set(0, 0, 0);
+      // 按"大坝正面"视角设置初始位置
+      camera.position.set(0, 1.5, 7.5);
+      controls.target.set(0, 0.5, 0);
       controls.update();
       objLoaded = true;
       loadingDiv.remove();
@@ -740,11 +742,14 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 
   // 视角控制（适配 OBJ 模型 0.30 倍缩放）
   const views = {
-    full: { pos: [5, 3, 10], target: [0, 0, 0] },
-    top: { pos: [0, 15, 0.1], target: [0, 0, 0] },
-    side: { pos: [12, 2, 0], target: [0, 0, 0] },
-    close: { pos: [2.5, 1.5, 4.5], target: [0, 0.5, 0] },
+    full: { pos: [5, 2.5, 10], target: [0, 0, 0] },
+    front: { pos: [0, 1.5, 7.5], target: [0, 0.5, 0] },
+    back: { pos: [0, 1.5, -7.5], target: [0, 0.5, 0] },
+    lock: { pos: [7, 0.5, 1], target: [4, 0, 0] },
   };
+
+  // 标记大坝正面按钮为初始激活
+  document.querySelector('.view-btn[data-view="front"]')?.classList.add('active');
 
   document.querySelectorAll('.view-btn').forEach(btn => {
     btn.addEventListener('click', () => {
