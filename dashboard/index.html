@@ -469,7 +469,7 @@ header {
     <iframe class="map-frame active" id="map0" src="about:blank" loading="lazy"></iframe>
     <iframe class="map-frame" id="map1" src="about:blank" loading="lazy"></iframe>
     <iframe class="map-frame" id="map2" src="about:blank" loading="lazy"></iframe>
-    <iframe class="map-frame" id="map3" src="https://keyizhang902-prog.github.io/3d-model/sanxia_3d_pro.html" loading="lazy"></iframe>
+    <iframe class="map-frame" id="map3" src="https://keyizhang902-prog.github.io/three-gorges-submergence-sim/" loading="lazy"></iframe>
     <iframe class="map-frame" id="map4" src="" loading="lazy"></iframe>
   </div>
 </div>
@@ -1084,12 +1084,11 @@ document.addEventListener('DOMContentLoaded', () => {
       frame.src = url;
     }
   });
-  // map3 和 map4 已有 src 或使用相对路径
+  // map3 已有 src (three-gorges-submergence-sim)
+  // map4: 大坝船闸 — 加载 sanxia_3d_pro.html
   const map4 = document.getElementById('map4');
   if (map4) {
-    map4.src = location.hostname.includes('github.io')
-      ? 'dam-lock-view.html'
-      : 'dashboard/dam-lock-view.html';
+    map4.src = 'https://keyizhang902-prog.github.io/3d-model/sanxia_3d_pro.html';
   }
 });
 </script>
