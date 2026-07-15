@@ -517,7 +517,6 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 (function init3D() {
   const container = document.getElementById('three-container');
@@ -584,35 +583,67 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
   basePlane.receiveShadow = true;
   scene.add(basePlane);
 
-  // 加载 GLB 模型（比 OBJ+MTL 稳定，单文件带纹理）
+  // 加载 OBJ 模型（带 28 张纹理贴图）
   const isGitHubPages = location.hostname.includes('github.io');
-  const modelUrl = isGitHubPages
-    ? new URL('assets/models/dam.glb', window.location.href).href
-    : new URL('dashboard/assets/models/dam.glb', window.location.href).href;
+  const baseUrl = isGitHubPages
+    ? new URL('assets/models/', window.location.href).href
+    : new URL('dashboard/assets/models/', window.location.href).href;
+
+  // 加载中提示
+  const loadingDiv = document.createElement('div');
+  loadingDiv.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#4a5a7a;font-size:13px;gap:10px;z-index:4;background:rgba(10,14,26,0.6);';
+  loadingDiv.innerHTML = '<span style="width:14px;height:14px;border:2px solid rgba(0,180,255,0.3);border-top-color:#00b4ff;border-radius:50%;animation:spin 0.8s linear infinite;"></span> 加载三峡大坝三维模型...';
+  const style = document.createElement('style');
+  style.textContent = '@keyframes spin{to{transform:rotate(360deg)}}';
+  document.head.appendChild(style);
+  container.appendChild(loadingDiv);
 
   let objLoaded = false;
-  const loader = new GLTFLoader();
-  loader.load(modelUrl, (gltf) => {
-    const obj = gltf.scene;
-    obj.traverse((child) => {
-      if (child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
-        const s = 0.055;
-        child.scale.set(s, s, s);
-        child.position.y = -2.5;
-        child.rotation.y = Math.PI;
+
+  const mtlLoader = new MTLLoader();
+  // MTL 内纹理路径已为 textures/xxx.jpg，资源路径设到 models/ 即可
+  mtlLoader.setResourcePath(baseUrl);
+  mtlLoader.load(baseUrl + '1.mtl', (materials) => {
+    materials.preload();
+    const objLoader = new OBJLoader();
+    objLoader.setMaterials(materials);
+    objLoader.load(baseUrl + '1.obj', (obj) => {
+      obj.traverse((child) => {
+        if (child.isMesh) {
+          child.castShadow = true;
+          child.receiveShadow = true;
+          const s = 0.30;
+          child.scale.set(s, s, s);
+          child.position.y = -3;
+          child.rotation.y = Math.PI;
+        }
+      });
+      scene.add(obj);
+      camera.position.set(5, 3, 10);
+      controls.target.set(0, 0, 0);
+      controls.update();
+      objLoaded = true;
+      loadingDiv.remove();
+    }, (xhr) => {
+      if (xhr.lengthComputable) {
+        const pct = Math.round(xhr.loaded / xhr.total * 100);
+        loadingDiv.innerHTML = `<span style="width:14px;height:14px;border:2px solid rgba(0,180,255,0.3);border-top-color:#00b4ff;border-radius:50%;animation:spin 0.8s linear infinite;"></span> 加载中 ${pct}%`;
       }
+    }, (err) => {
+      console.warn('OBJ load failed:', err);
+      loadingDiv.remove();
+      if (!objLoaded) createDamModel(scene);
     });
-    scene.add(obj);
-    camera.position.set(5, 3, 10);
-    controls.target.set(0, 0, 0);
-    controls.update();
-    objLoaded = true;
-  }, undefined, (err) => {
-    console.warn('GLB load failed:', err);
+  }, undefined, () => {
+    loadingDiv.remove();
     if (!objLoaded) createDamModel(scene);
   });
+
+  // 超长超时回退：60秒后如果还没加载完则使用程序化模型
+  setTimeout(() => {
+    loadingDiv.remove();
+    if (!objLoaded) createDamModel(scene);
+  }, 60000);
 
   function createDamModel(scene) {
     if (objLoaded) return;
