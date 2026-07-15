@@ -459,9 +459,9 @@ header {
   <!-- 右：地图 -->
   <div class="card card-map" id="mapCard">
     <div class="map-tabs" id="mapTabs">
-      <button class="map-tab active" data-map="0">长江水系</button>
+      <button class="map-tab active" data-map="0">长江概览</button>
       <button class="map-tab" data-map="1">坝段选址</button>
-      <button class="map-tab" data-map="2">移民分布</button>
+      <button class="map-tab" data-map="2">河道变迁</button>
       <button class="map-tab" data-map="3">3D 淹没</button>
     </div>
     <iframe class="map-frame active" id="map0" src="about:blank" loading="lazy"></iframe>
@@ -895,13 +895,12 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 })();
 
 // ═══════════════════ 地图 URL 占位符 ═══════════════════
-// ★★★ 请将下方 MAP_URL_X 替换为您的 GeoScene 地图 URL ★★★
-// 长江水系地图 URL:
-const MAP_URL_0 = 'about:blank';
+// 长江水系地图 URL (长江概览图):
+const MAP_URL_0 = 'https://www.geosceneonline.cn/geoscene/apps/mapviewer/index.html?webmap=efd5d11d58354e1582357716d82fff57';
 // 坝段选址地图 URL:
-const MAP_URL_1 = 'about:blank';
-// 移民分布地图 URL:
-const MAP_URL_2 = 'about:blank';
+const MAP_URL_1 = 'https://www.geosceneonline.cn/geoscene/apps/mapviewer/index.html?webmap=6c2b2f8b051642d19a03ea7d6512a969';
+// 河道变迁地图 URL (蓄水前后对比):
+const MAP_URL_2 = 'https://www.geosceneonline.cn/geoscene/apps/mapviewer/index.html?webmap=35c77b529c524a4b97cfe86536029434';
 
 // 当页面加载完成后，填入地图 URL（如果已配置）
 document.addEventListener('DOMContentLoaded', () => {
