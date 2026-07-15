@@ -527,8 +527,8 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
   const scene = new THREE.Scene();
   scene.background = new THREE.Color('#0a0e1a');
 
-  const camera = new THREE.PerspectiveCamera(40, W/H, 0.1, 200);
-  camera.position.set(18, 12, 25);
+  const camera = new THREE.PerspectiveCamera(45, W/H, 0.1, 200);
+  camera.position.set(8, 6, 14);
 
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(W, H);
@@ -543,8 +543,8 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
   controls.target.set(0, 0, 0);
   controls.enableDamping = true;
   controls.dampingFactor = 0.08;
-  controls.minDistance = 6;
-  controls.maxDistance = 60;
+  controls.minDistance = 4;
+  controls.maxDistance = 40;
   controls.maxPolarAngle = Math.PI * 0.85;
   controls.update();
 
@@ -563,9 +563,11 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
   rim.position.set(-3, 5, 10);
   scene.add(rim);
 
-  // 地面网格
-  const gridHelper = new THREE.GridHelper(50, 50, 0x003366, 0x002244);
+  // 地面网格（极淡辅助线）
+  const gridHelper = new THREE.GridHelper(60, 40, 0x003366, 0x002244);
   gridHelper.position.y = -3;
+  gridHelper.material.transparent = true;
+  gridHelper.material.opacity = 0.15;
   scene.add(gridHelper);
 
   const baseMat = new THREE.MeshStandardMaterial({
@@ -602,7 +604,7 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
         if (child.isMesh) {
           child.castShadow = true;
           child.receiveShadow = true;
-          const s = 0.10;
+          const s = 0.30;
           child.scale.set(s, s, s);
           child.position.y = -3;
           // OBJ 已为 Y-up 坐标系，无需旋转
@@ -610,7 +612,7 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
       });
       scene.add(obj);
       // 调整相机适应大坝尺寸
-      camera.position.set(18, 12, 25);
+      camera.position.set(8, 6, 14);
       controls.target.set(0, 0, 0);
       controls.update();
       objLoaded = true;
@@ -720,12 +722,12 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
   });
   ro.observe(container);
 
-  // 视角控制（适配 OBJ 模型 0.10 倍缩放后尺寸 ~24x2.3x29）
+  // 视角控制（适配 OBJ 模型 0.30 倍缩放）
   const views = {
-    full: { pos: [18, 12, 25], target: [0, 0, 0] },
-    top: { pos: [0, 28, 0.1], target: [0, 0, 0] },
-    side: { pos: [28, 4, 0], target: [0, 0, 0] },
-    close: { pos: [6, 3, 10], target: [0, 0.5, 0] },
+    full: { pos: [8, 6, 14], target: [0, 0, 0] },
+    top: { pos: [0, 18, 0.1], target: [0, 0, 0] },
+    side: { pos: [18, 3, 0], target: [0, 0, 0] },
+    close: { pos: [4, 2, 7], target: [0, 0.5, 0] },
   };
 
   document.querySelectorAll('.view-btn').forEach(btn => {
