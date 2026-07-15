@@ -597,7 +597,7 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
       obj.rotation.y = Math.PI;
       obj.position.y = -3;
       scene.add(obj);
-      camera.position.set(3, 2, 5);
+      camera.position.set(0, 4, 18);
       controls.target.set(0, 0, 0);
       controls.update();
     });
@@ -625,10 +625,10 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 
   // 视角控制（适配 OBJ 模型 0.30 倍缩放）
   const views = {
-    full: { pos: [3, 2, 5], target: [0, 0, 0] },
-    top: { pos: [0, 10, 0.1], target: [0, 0, 0] },
-    side: { pos: [7, 1.5, 0], target: [0, 0, 0] },
-    close: { pos: [1.5, 0.8, 2.5], target: [0, 0.3, 0] },
+    full: { pos: [0, 4, 18], target: [0, 0, 0] },
+    top: { pos: [0, 20, 0.1], target: [0, 0, 0] },
+    side: { pos: [18, 1, 0], target: [0, 0, 0] },
+    close: { pos: [0, 2, 7], target: [0, 0, 0] },
   };
 
   document.querySelectorAll('.view-btn').forEach(btn => {
