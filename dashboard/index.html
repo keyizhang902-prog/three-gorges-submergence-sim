@@ -581,9 +581,13 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
   scene.add(basePlane);
 
   // 加载 OBJ 模型
-  const modelPath = location.href.includes('index.html')
-    ? '' : 'dashboard/';
-  const baseUrl = new URL(modelPath + 'assets/models/', window.location.href).href;
+  // 路径修复：GitHub Pages 上 dashboard/ 目录下，assets/models/ 是相对路径
+  const isGitHubPages = location.hostname.includes('github.io');
+  const baseUrl = isGitHubPages
+    ? new URL('assets/models/', window.location.href).href
+    : new URL('dashboard/assets/models/', window.location.href).href;
+
+  let objLoaded = false;
 
   const mtlLoader = new MTLLoader();
   mtlLoader.setResourcePath(baseUrl + 'textures/');
@@ -603,47 +607,91 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
         }
       });
       scene.add(obj);
+      objLoaded = true;
     }, undefined, (err) => {
-      console.warn('OBJ load failed, using fallback:', err);
-      createFallback(scene);
+      console.warn('OBJ load failed, using dam model:', err);
+      if (!objLoaded) createDamModel(scene);
     });
   }, undefined, () => {
-    createFallback(scene);
+    if (!objLoaded) createDamModel(scene);
   });
 
-  function createFallback(scene) {
-    // 备选：程序化大坝
-    const damGroup = new THREE.Group();
-    const bodyGeo = new THREE.BoxGeometry(6, 2.2, 1.8);
-    const bodyMat = new THREE.MeshStandardMaterial({
-      color: '#556677',
-      roughness: 0.4,
-      metalness: 0.3,
-    });
-    const body = new THREE.Mesh(bodyGeo, bodyMat);
-    body.position.y = 0;
-    body.castShadow = true;
-    damGroup.add(body);
+  // 超时回退：5秒后如果模型还没加载完成，直接使用程序化模型
+  setTimeout(() => {
+    if (!objLoaded) createDamModel(scene);
+  }, 5000);
 
-    // 闸门
-    for (let i = -2.5; i <= 2.5; i += 0.8) {
+  function createDamModel(scene) {
+    if (objLoaded) return;
+    objLoaded = true;
+    const group = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({
+      color: '#556677', roughness: 0.5, metalness: 0.25,
+    });
+    const darkMat = new THREE.MeshStandardMaterial({
+      color: '#334455', roughness: 0.6, metalness: 0.2,
+    });
+    const lightMat = new THREE.MeshStandardMaterial({
+      color: '#778899', roughness: 0.4, metalness: 0.3,
+    });
+
+    // 坝体 - 梯形截面（上窄下宽）
+    const shape = new THREE.Shape();
+    shape.moveTo(-3.0, -1.0);
+    shape.lineTo(-2.8, 1.2);
+    shape.lineTo(2.8, 1.2);
+    shape.lineTo(3.0, -1.0);
+    shape.closePath();
+    const extrudeSettings = { depth: 2.0, bevelEnabled: true, bevelSize: 0.05, bevelThickness: 0.05 };
+    const body = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, extrudeSettings), mat);
+    body.castShadow = true;
+    group.add(body);
+
+    // 泄洪闸门
+    for (let i = -2.4; i <= 2.4; i += 0.6) {
       const gate = new THREE.Mesh(
-        new THREE.BoxGeometry(0.3, 0.8, 0.1),
-        new THREE.MeshStandardMaterial({ color: '#334455', roughness: 0.6 })
+        new THREE.BoxGeometry(0.25, 0.5, 0.08),
+        darkMat
       );
-      gate.position.set(i, 0.7, 1.0);
-      damGroup.add(gate);
+      gate.position.set(i, 0.4, 1.05);
+      group.add(gate);
     }
+
+    // 坝顶公路
+    const road = new THREE.Mesh(
+      new THREE.BoxGeometry(5.8, 0.08, 0.6),
+      new THREE.MeshStandardMaterial({ color: '#445566', roughness: 0.8 })
+    );
+    road.position.set(0, 1.25, 0);
+    group.add(road);
 
     // 厂房
     const plant = new THREE.Mesh(
-      new THREE.BoxGeometry(5, 0.8, 1.0),
-      new THREE.MeshStandardMaterial({ color: '#667788', roughness: 0.5 })
+      new THREE.BoxGeometry(4.5, 0.6, 0.5),
+      lightMat
     );
-    plant.position.set(0, -0.7, 1.4);
-    damGroup.add(plant);
+    plant.position.set(0, -0.7, 1.5);
+    group.add(plant);
 
-    scene.add(damGroup);
+    // 船闸（左侧）
+    const lock = new THREE.Mesh(
+      new THREE.BoxGeometry(0.8, 0.5, 1.2),
+      darkMat
+    );
+    lock.position.set(-3.5, -0.25, -0.2);
+    group.add(lock);
+
+    // 高压线塔装饰（视觉引导）
+    for (let x of [-3.6, 3.6]) {
+      const tower = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.04, 0.06, 1.5, 4),
+        new THREE.MeshStandardMaterial({ color: '#667788', roughness: 0.7 })
+      );
+      tower.position.set(x, -0.25, -0.8);
+      group.add(tower);
+    }
+
+    scene.add(group);
   }
 
   // 渲染循环
