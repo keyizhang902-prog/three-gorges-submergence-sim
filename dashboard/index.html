@@ -464,11 +464,13 @@ header {
       <button class="map-tab" data-map="1">坝段选址</button>
       <button class="map-tab" data-map="2">河道变迁</button>
       <button class="map-tab" data-map="3">3D 淹没</button>
+      <button class="map-tab" data-map="4">大坝船闸</button>
     </div>
     <iframe class="map-frame active" id="map0" src="about:blank" loading="lazy"></iframe>
     <iframe class="map-frame" id="map1" src="about:blank" loading="lazy"></iframe>
     <iframe class="map-frame" id="map2" src="about:blank" loading="lazy"></iframe>
     <iframe class="map-frame" id="map3" src="https://keyizhang902-prog.github.io/three-gorges-submergence-sim/" loading="lazy"></iframe>
+    <iframe class="map-frame" id="map4" src="" loading="lazy"></iframe>
   </div>
 </div>
 
@@ -1219,7 +1221,7 @@ const MAP_URL_1 = 'https://www.geosceneonline.cn/geoscene/apps/mapviewer/index.h
 // 河道变迁地图 URL (蓄水前后对比):
 const MAP_URL_2 = 'https://www.geosceneonline.cn/geoscene/apps/mapviewer/index.html?webmap=35c77b529c524a4b97cfe86536029434';
 
-// 当页面加载完成后，填入地图 URL（如果已配置）
+// 当页面加载完成后，填入地图 URL
 document.addEventListener('DOMContentLoaded', () => {
   const maps = [MAP_URL_0, MAP_URL_1, MAP_URL_2];
   maps.forEach((url, i) => {
@@ -1228,6 +1230,13 @@ document.addEventListener('DOMContentLoaded', () => {
       frame.src = url;
     }
   });
+  // map3 和 map4 已有 src 或使用相对路径
+  const map4 = document.getElementById('map4');
+  if (map4) {
+    map4.src = location.hostname.includes('github.io')
+      ? 'dam-lock-view.html'
+      : 'dashboard/dam-lock-view.html';
+  }
 });
 </script>
 </body>
