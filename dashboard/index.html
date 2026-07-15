@@ -429,34 +429,29 @@ header {
     </div>
     <div id="chart-container"></div>
     <div class="water-level-bar" id="waterLevelBar">
-      <div class="wl-item" data-level="66">
+      <div class="wl-item" data-level="-60">
         <div class="wl-bar"><div class="wl-fill" style="height:0%"></div></div>
         <div class="wl-label">原始河道</div>
-        <div class="wl-value">66m</div>
-      </div>
-      <div class="wl-item" data-level="50">
-        <div class="wl-bar"><div class="wl-fill" style="height:18%"></div></div>
-        <div class="wl-label">1997围堰</div>
-        <div class="wl-value">50m</div>
+        <div class="wl-value">-60m</div>
       </div>
       <div class="wl-item" data-level="90">
         <div class="wl-bar"><div class="wl-fill" style="height:28%"></div></div>
-        <div class="wl-label">2003一期</div>
+        <div class="wl-label">一期蓄水</div>
         <div class="wl-value">90m</div>
       </div>
       <div class="wl-item" data-level="135">
-        <div class="wl-bar"><div class="wl-fill" style="height:45%"></div></div>
-        <div class="wl-label">2006二期</div>
+        <div class="wl-bar"><div class="wl-fill" style="height:52%"></div></div>
+        <div class="wl-label">二期蓄水</div>
         <div class="wl-value">135m</div>
       </div>
       <div class="wl-item" data-level="156">
-        <div class="wl-bar"><div class="wl-fill" style="height:54%"></div></div>
-        <div class="wl-label">2007三期</div>
+        <div class="wl-bar"><div class="wl-fill" style="height:62%"></div></div>
+        <div class="wl-label">三期蓄水</div>
         <div class="wl-value">156m</div>
       </div>
       <div class="wl-item active" data-level="175">
-        <div class="wl-bar"><div class="wl-fill" style="height:64%"></div></div>
-        <div class="wl-label">2010竣工</div>
+        <div class="wl-bar"><div class="wl-fill" style="height:72%"></div></div>
+        <div class="wl-label">竣工水位</div>
         <div class="wl-value">175m</div>
       </div>
     </div>
@@ -520,6 +515,8 @@ header {
 // ═══════════════════ Three.js 3D 大坝 ═══════════════════
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 (function init3D() {
@@ -567,52 +564,128 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
   rim.position.set(-3, 5, 10);
   scene.add(rim);
 
-  // 地面
+  // 地面网格（极淡辅助线）
+  const gridHelper = new THREE.GridHelper(60, 40, 0x003366, 0x002244);
+  gridHelper.position.y = -3;
+  gridHelper.material.transparent = true;
+  gridHelper.material.opacity = 0.15;
+  scene.add(gridHelper);
+
   const baseMat = new THREE.MeshStandardMaterial({
     color: '#0d1520',
     roughness: 0.9,
     metalness: 0.1,
+    transparent: true,
+    opacity: 0.5,
   });
-  const basePlane = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), baseMat);
+  const basePlane = new THREE.Mesh(new THREE.PlaneGeometry(50, 50), baseMat);
   basePlane.rotation.x = -Math.PI/2;
-  basePlane.position.y = -3.5;
+  basePlane.position.y = -3;
   basePlane.receiveShadow = true;
   scene.add(basePlane);
 
-  // ─── 仅加载朋友的 OBJ 模型（已转 GLB） ───
+  // 加载 GLB 模型（比 OBJ+MTL 稳定，单文件带纹理）
   const isGitHubPages = location.hostname.includes('github.io');
-  const baseUrl = isGitHubPages
-    ? new URL('assets/models/', window.location.href).href
-    : new URL('dashboard/assets/models/', window.location.href).href;
+  const modelUrl = isGitHubPages
+    ? new URL('assets/models/dam.glb', window.location.href).href
+    : new URL('dashboard/assets/models/dam.glb', window.location.href).href;
 
+  let objLoaded = false;
   const loader = new GLTFLoader();
-  loader.load(baseUrl + 'dam.glb', (gltf) => {
+  loader.load(modelUrl, (gltf) => {
     const obj = gltf.scene;
-    obj.scale.set(0.30, 0.30, 0.30);
-    obj.rotation.y = Math.PI;
-    obj.position.y = -3;
-
-    // 给所有 Mesh 设置统一材质（无纹理加载，更快更稳）
-     const mat = new THREE.MeshStandardMaterial({
-       color: '#5a6a7a',
-       roughness: 0.5,
-       metalness: 0.2,
-     });
-     obj.traverse((child) => {
-       if (child.isMesh) {
-         child.castShadow = true;
-         child.receiveShadow = true;
-         child.material = mat;
-       }
-     });
-
+    obj.traverse((child) => {
+      if (child.isMesh) {
+        child.castShadow = true;
+        child.receiveShadow = true;
+        const s = 0.055;
+        child.scale.set(s, s, s);
+        child.position.y = -2.5;
+        child.rotation.y = Math.PI;
+      }
+    });
     scene.add(obj);
-    camera.position.set(0, 4, 18);
+    camera.position.set(5, 3, 10);
     controls.target.set(0, 0, 0);
     controls.update();
+    objLoaded = true;
   }, undefined, (err) => {
-    console.error('GLB load failed:', err);
+    console.warn('GLB load failed:', err);
+    if (!objLoaded) createDamModel(scene);
   });
+
+  function createDamModel(scene) {
+    if (objLoaded) return;
+    objLoaded = true;
+    const group = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({
+      color: '#556677', roughness: 0.5, metalness: 0.25,
+    });
+    const darkMat = new THREE.MeshStandardMaterial({
+      color: '#334455', roughness: 0.6, metalness: 0.2,
+    });
+    const lightMat = new THREE.MeshStandardMaterial({
+      color: '#778899', roughness: 0.4, metalness: 0.3,
+    });
+
+    // 坝体 - 梯形截面（上窄下宽）
+    const shape = new THREE.Shape();
+    shape.moveTo(-3.0, -1.0);
+    shape.lineTo(-2.8, 1.2);
+    shape.lineTo(2.8, 1.2);
+    shape.lineTo(3.0, -1.0);
+    shape.closePath();
+    const extrudeSettings = { depth: 2.0, bevelEnabled: true, bevelSize: 0.05, bevelThickness: 0.05 };
+    const body = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, extrudeSettings), mat);
+    body.castShadow = true;
+    group.add(body);
+
+    // 泄洪闸门
+    for (let i = -2.4; i <= 2.4; i += 0.6) {
+      const gate = new THREE.Mesh(
+        new THREE.BoxGeometry(0.25, 0.5, 0.08),
+        darkMat
+      );
+      gate.position.set(i, 0.4, 1.05);
+      group.add(gate);
+    }
+
+    // 坝顶公路
+    const road = new THREE.Mesh(
+      new THREE.BoxGeometry(5.8, 0.08, 0.6),
+      new THREE.MeshStandardMaterial({ color: '#445566', roughness: 0.8 })
+    );
+    road.position.set(0, 1.25, 0);
+    group.add(road);
+
+    // 厂房
+    const plant = new THREE.Mesh(
+      new THREE.BoxGeometry(4.5, 0.6, 0.5),
+      lightMat
+    );
+    plant.position.set(0, -0.7, 1.5);
+    group.add(plant);
+
+    // 船闸（左侧）
+    const lock = new THREE.Mesh(
+      new THREE.BoxGeometry(0.8, 0.5, 1.2),
+      darkMat
+    );
+    lock.position.set(-3.5, -0.25, -0.2);
+    group.add(lock);
+
+    // 高压线塔装饰（视觉引导）
+    for (let x of [-3.6, 3.6]) {
+      const tower = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.04, 0.06, 1.5, 4),
+        new THREE.MeshStandardMaterial({ color: '#667788', roughness: 0.7 })
+      );
+      tower.position.set(x, -0.25, -0.8);
+      group.add(tower);
+    }
+
+    scene.add(group);
+  }
 
   // 渲染循环
   function animate() {
@@ -636,10 +709,10 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
   // 视角控制（适配 OBJ 模型 0.30 倍缩放）
   const views = {
-    full: { pos: [0, 4, 18], target: [0, 0, 0] },
-    top: { pos: [0, 20, 0.1], target: [0, 0, 0] },
-    side: { pos: [18, 1, 0], target: [0, 0, 0] },
-    close: { pos: [0, 2, 7], target: [0, 0, 0] },
+    full: { pos: [5, 3, 10], target: [0, 0, 0] },
+    top: { pos: [0, 15, 0.1], target: [0, 0, 0] },
+    side: { pos: [12, 2, 0], target: [0, 0, 0] },
+    close: { pos: [2.5, 1.5, 4.5], target: [0, 0.5, 0] },
   };
 
   document.querySelectorAll('.view-btn').forEach(btn => {
@@ -817,7 +890,6 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
           markLine: {
             silent: true,
             data: [
-              { xAxis: '1995', label: { formatter: '1997围堰', color: '#ffb44a', fontSize: 10 }, lineStyle: { color: 'rgba(255,180,74,0.4)', type: 'dashed', width: 1.5 } },
               { xAxis: '2000', label: { formatter: '2003蓄水', color: '#4a5a7a', fontSize: 10 }, lineStyle: { color: 'rgba(255,100,100,0.4)', type: 'dashed', width: 1.5 } },
             ],
           },
