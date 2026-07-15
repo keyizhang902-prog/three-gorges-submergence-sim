@@ -429,10 +429,10 @@ header {
     </div>
     <div id="chart-container"></div>
     <div class="water-level-bar" id="waterLevelBar">
-      <div class="wl-item" data-level="-60">
+      <div class="wl-item" data-level="66">
         <div class="wl-bar"><div class="wl-fill" style="height:0%"></div></div>
         <div class="wl-label">原始河道</div>
-        <div class="wl-value">-60m</div>
+        <div class="wl-value">66m</div>
       </div>
       <div class="wl-item" data-level="50">
         <div class="wl-bar"><div class="wl-fill" style="height:18%"></div></div>
@@ -776,12 +776,11 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
         if (child.isMesh) {
           child.castShadow = true;
           child.receiveShadow = true;
-          const s = 0.30;
-          child.scale.set(s, s, s);
-          child.position.y = -3;
+          child.scale.set(0.30, 0.30, 0.30);
           child.rotation.y = Math.PI;
         }
       });
+      obj.position.y = -3;
       scene.add(obj);
       // 叠加原创增强模块（船闸、泄洪、电厂、标识等）
       particleState = addOriginalFeatures(scene);
