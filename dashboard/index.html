@@ -590,7 +590,8 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
   let objLoaded = false;
 
   const mtlLoader = new MTLLoader();
-  mtlLoader.setResourcePath(baseUrl + 'textures/');
+  // MTL 文件内已包含 textures/ 前缀，资源路径只需到 models/
+  mtlLoader.setResourcePath(baseUrl);
   mtlLoader.load(baseUrl + '1.mtl', (materials) => {
     materials.preload();
     const objLoader = new OBJLoader();
